@@ -1,9 +1,29 @@
 # encoding:utf-8
 from svmrnn import SVMRNN
 import os
-import sys
-import argparse
 from utils import load_file, load_wavs, wavs_to_specs, get_next_batch, separate_magnitude_phase
+
+# Setting parameters：
+# dataset_dir : 数据集路径
+# model_dir ： 模型保存的文件夹
+# model_filename : 模型保存的文件名
+# dataset_sr : 数据集音频文件的采样率
+# learning_rate ： 学习率
+# batch_size : 小批量训练数据的长度
+# sample_frames ： 每次训练获取多少帧数据
+# iterations ： 训练迭代次数
+# dropout_rate ： dropout率
+
+DATASET_TRAIN_DIR = './dataset/MIR-1K/Wavfile'
+DATASET_VALIDATE_DIR = './dataset/MIR-1K/UndividedWavfile'
+MODEL_DIR = 'model'
+MODEL_FILENAME = 'svmrnn.ckpt'
+DATASET_SAMPLING_RATE = 16000
+LEARNING_RATE = 0.0001
+BATCH_SIZE = 64
+SAMPLE_FRAMES = 10
+ITERATIONS = 3000000
+DROPOUT_RATE = 0.95
 
 
 # 训练模型，需要做以下事情
@@ -16,44 +36,50 @@ from utils import load_file, load_wavs, wavs_to_specs, get_next_batch, separate_
 # 4. 初始化网络模型
 # 5. 获取mini-batch数据，开始进行迭代训练
 
-def main(args):
+def main():
     # 先看数据集数据是否存在
-    if not os.path.exists(args.dataset_train_dir) or not os.path.exists(args.dataset_validate_dir):
+    if not os.path.exists(DATASET_TRAIN_DIR) or not os.path.exists(DATASET_VALIDATE_DIR):
         raise NameError('数据集路径"./dataset/MIR-1K/Wavfile"或"./dataset/MIR-1K/UndividedWavfile"不存在!')
 
-    # 1. 导入需要训练的数据集文件路径，存到列表中即可
-    train_file_list = load_file(args.dataset_train_dir)
-    valid_file_list = load_file(args.dataset_validate_dir)
+    # 导入需要训练的数据集文件路径，存到列表中即可
+    train_file_list = load_file(DATASET_TRAIN_DIR)
+    valid_file_list = load_file(DATASET_TRAIN_DIR)
 
     # 数据集的采样率
-    mir1k_sr = args.dataset_sr
-    # 用于短时傅里叶变换，窗口大小
+    mir1k_sr = DATASET_SAMPLING_RATE
+
+    # 短时傅里叶窗口大小
     n_fft = 1024
-    # 步幅;帧移对应卷积中的stride;
+
+    # 帧移对应卷积中的stride步幅;
     hop_length = n_fft // 4
 
     # Model parameters
     # 学习率
-    learning_rate = args.learning_rate
+    learning_rate = LEARNING_RATE
 
     # 用于创建rnn节点数
     num_hidden_units = [1024, 1024, 1024, 1024, 1024]
+
     # batch 长度
-    batch_size = args.batch_size
+    batch_size = BATCH_SIZE
+
     # 获取多少帧数据
-    sample_frames = args.sample_frames
+    sample_frames = SAMPLE_FRAMES
+
     # 训练迭代次数
-    iterations = args.iterations
+    iterations = ITERATIONS
+
     # dropout
-    dropout_rate = args.dropout_rate
+    dropout_rate = DROPOUT_RATE
 
     # 模型保存路径
-    model_dir = args.model_dir
-    model_filename = args.model_filename
+    model_dir = MODEL_DIR
+    model_filename = MODEL_FILENAME
 
-    # 导入训练数据集的wav数据,
-    # wavs_mono_train存的是单声道，wavs_music_train 存的是背景音乐，wavs_voice_train 存的是纯人声
+    # 导入训练数据集的wav数据, wavs_mono_train存的是单声道，wavs_music_train 存的是背景音乐，wavs_voice_train 存的是纯人声
     wavs_mono_train, wavs_music_train, wavs_voice_train = load_wavs(filenames=train_file_list, sr=mir1k_sr)
+
     # 通过短时傅里叶变换将声音转到频域
     stfts_mono_train, stfts_music_train, stfts_voice_train = wavs_to_specs(
         wavs_mono=wavs_mono_train, wavs_music=wavs_music_train, wavs_voice=wavs_voice_train, n_fft=n_fft,
@@ -118,33 +144,5 @@ def main(args):
             model.save(directory=model_dir, filename=model_filename, global_step=i)
 
 
-# 可以通过命令设置的参数：
-# dataset_dir : 数据集路径
-# model_dir ： 模型保存的文件夹
-# model_filename : 模型保存的文件名
-# dataset_sr : 数据集音频文件的采样率
-# learning_rate ： 学习率
-# batch_size : 小批量训练数据的长度
-# sample_frames ： 每次训练获取多少帧数据
-# iterations ： 训练迭代次数
-# dropout_rate ： dropout率
-def parse_arguments(argv):
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('--dataset_train_dir', type=str, help='数据集训练数据路径', default='./dataset/MIR-1K/Wavfile')
-    parser.add_argument('--dataset_validate_dir', type=str, help='数据集验证数据路径',
-                        default='./dataset/MIR-1K/UndividedWavfile')
-    parser.add_argument('--model_dir', type=str, help='模型保存的文件夹', default='model')
-    parser.add_argument('--model_filename', type=str, help='模型保存的文件名', default='svmrnn.ckpt')
-    parser.add_argument('--dataset_sr', type=int, help='数据集音频文件的采样率', default=16000)
-    parser.add_argument('--learning_rate', type=float, help='学习率', default=0.0001)
-    parser.add_argument('--batch_size', type=int, help='小批量训练数据的长度', default=64)
-    parser.add_argument('--sample_frames', type=int, help='每次训练获取多少帧数据', default=10)
-    parser.add_argument('--iterations', type=int, help='训练迭代次数', default=3000000)
-    parser.add_argument('--dropout_rate', type=float, help='dropout率', default=0.95)
-
-    return parser.parse_args(argv)
-
-
 if __name__ == '__main__':
-    main(parse_arguments(sys.argv[1:]))
+    main()
